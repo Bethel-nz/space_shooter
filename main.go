@@ -26,29 +26,16 @@ type Ship struct {
 	Angle   float64
 	Size    float64
 	Health  int
-	LastShot time.Time
 }
 
-// EnemyShip represents an enemy ship
 type EnemyShip struct {
-	X, Y    float64
-	Angle   float64
-	Size    float64
-	Health  int
-	Speed   float64
-	LastShot time.Time
+				X, Y    float64
+				Angle   float64
+				Size    float64
+				Health  int
+				Speed   float64
 }
 
-// Boss represents a boss enemy
-type Boss struct {
-	X, Y    float64
-	Angle   float64
-	Size    float64
-	Health  int
-	Speed   float64
-	LastShot time.Time
-	Pattern int
-}
 
 // Bullet represents a bullet fired by the ship
 type Bullet struct {
@@ -68,27 +55,6 @@ type Asteroid struct {
 	Health      int
 }
 
-// Upgrade represents a permanent player upgrade
-type Upgrade struct {
-	Name  string
-	Level int
-	Cost  int
-}
-
-// SpecialWeapon represents a special weapon with limited ammo
-type SpecialWeapon struct {
-	Name  string
-	Ammo  int
-	Damage int
-}
-
-// Achievement represents a player achievement
-type Achievement struct {
-	Name        string
-	Description string
-	Unlocked    bool
-}
-
 type GameState int
 
 const (
@@ -97,13 +63,12 @@ const (
 				Victory
 )
 
+
 type Game struct {
 	ship         Ship
-	enemyShips   []*EnemyShip
-	boss         *Boss
-	gameStartTime  time.Time
+	enemyShip      *EnemyShip
+				gameStartTime  time.Time
 	bullets      []Bullet
-	enemyBullets []Bullet
 	asteroids    []Asteroid
 	powerUps     []PowerUp
 	score        int
@@ -120,16 +85,12 @@ type Game struct {
 	powerUpMessage string
 	powerUpMessageTime time.Time
 	state           GameState
-	gameTime        time.Duration
-	asteroidSpeed   float64
-	enemyShipSpeed  float64
-	asteroidsDefeated int
-	enemyShipsDestroyed int
-	gameFont        font.Face
-	level           int
-	upgrades        []Upgrade
-	specialWeapon   *SpecialWeapon
-	achievements    []Achievement
+				gameTime        time.Duration
+				asteroidSpeed   float64
+				enemyShipSpeed  float64
+				asteroidsDefeated int
+				enemyShipsDestroyed int
+				gameFont        font.Face
 }
 
 type PowerUpType int
@@ -148,21 +109,6 @@ const (
 	powerUpSpawnInterval = 45 * time.Second
 	powerUpMessageDuration = 3 * time.Second
 )
-
-const (
-	None PowerUpType = iota
-	Nuke
-	DoubleDamage
-	InfiniteAmmo
-	Shield
-	SpeedBoost
-)
-
-type PowerUp struct {
-	X, Y     float64
-	Type     PowerUpType
-	Duration time.Time
-}
 
 func (s *Ship) Move(dx, dy float64) {
 	s.X += dx
@@ -212,159 +158,301 @@ func (a *Asteroid) Draw(screen *ebiten.Image) {
 	}
 }
 
-func (g *Game) Update() error {
-	g.gameTime = time.Since(g.gameStartTime)
+const (
+	None PowerUpType = iota
+	Nuke
+	DoubleDamage
+	InfiniteAmmo
+)
 
-	switch g.state {
-	case Playing:
-		if g.gameOver {
-			if ebiten.IsKeyPressed(ebiten.KeyControl) && ebiten.IsKeyPressed(ebiten.KeyR) {
-				g.reset()
-				g.gameOver = false
-			}
-			return nil
-		}
-
-		// Spawn enemy ships
-		if len(g.enemyShips) < 3 && rand.Float64() < 0.01 {
-			g.spawnEnemyShip()
-		}
-
-		// Update enemy ships
-		for _, enemy := range g.enemyShips {
-			g.updateEnemyShip(enemy)
-		}
-
-		// Update boss
-		if g.boss != nil {
-			g.updateBoss()
-		}
-
-		// Spawn boss every 5 minutes
-		if int(g.gameTime.Minutes())%5 == 0 && g.boss == nil && g.gameTime.Seconds()%60 < 1 {
-			g.spawnBoss()
-		}
-
-		// Player movement and shooting
-		g.updatePlayerMovement()
-		g.updatePlayerShooting()
-
-		// Update bullets
-		g.updateBullets()
-
-		// Update asteroids
-		g.updateAsteroids()
-
-		// Check for collisions
-		g.checkCollisions()
-
-		// Update power-ups
-		g.updatePowerUps()
-
-		// Increase difficulty over time
-		g.updateDifficulty()
-
-		// Check for level up
-		g.checkLevelUp()
-
-		// Check achievements
-		g.checkAchievements()
-
-	case GameOver, Victory:
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
-			g.reset()
-		}
-	}
-
-	return nil
+type PowerUp struct {
+	X, Y     float64
+	Type     PowerUpType
+	Duration time.Time
 }
 
+func (g *Game) Update() error {
+				g.gameTime = time.Since(g.gameStartTime)
+
+				switch g.state {
+				case Playing:
+								if g.gameOver {
+												if ebiten.IsKeyPressed(ebiten.KeyControl) && ebiten.IsKeyPressed(ebiten.KeyR) {
+																g.reset()
+																g.gameOver = false
+												}
+												return nil
+								}
+
+								if time.Since(g.gameStartTime) > 105*time.Second && g.enemyShip == nil {
+												g.enemyShip = &EnemyShip{
+																X:     float64(rand.Intn(screenWidth)),
+																Y:     0,
+																Angle: math.Pi / 2,
+																Size:  30,
+																Health: 100,
+																Speed: shipSpeed * 1.5,
+												}
+								}
+
+								if g.enemyShip != nil {
+															// Simple AI: move towards the player
+															dx := g.ship.X - g.enemyShip.X
+															dy := g.ship.Y - g.enemyShip.Y
+															distance := math.Sqrt(dx*dx + dy*dy)
+															g.enemyShip.X += (dx / distance) * g.enemyShip.Speed
+															g.enemyShip.Y += (dy / distance) * g.enemyShip.Speed
+															g.enemyShip.Angle = math.Atan2(dy, dx)
+
+															// Check for collision with player's bullets
+															for i := len(g.bullets) - 1; i >= 0; i-- {
+																			bullet := &g.bullets[i]
+																			if g.collidesWithEnemyShip(bullet) {
+																							g.enemyShip.Health -= bullet.Damage
+																							g.bullets = append(g.bullets[:i], g.bullets[i+1:]...)
+																							if g.enemyShip.Health <= 0 {
+																											g.enemyShip = nil
+																											g.score += 100 // Bonus points for destroying enemy ship
+																											g.enemyShipsDestroyed++
+																											break
+																							}
+																			}
+															}
+											}
+
+								if ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyUp) {
+												g.ship.Move(0, -shipSpeed)
+												g.ship.Angle = -math.Pi / 2
+								}
+								if ebiten.IsKeyPressed(ebiten.KeyS) || ebiten.IsKeyPressed(ebiten.KeyDown) {
+												g.ship.Move(0, shipSpeed)
+												g.ship.Angle = math.Pi / 2
+								}
+								if ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyLeft) {
+												g.ship.Move(-shipSpeed, 0)
+												g.ship.Angle = math.Pi
+								}
+								if ebiten.IsKeyPressed(ebiten.KeyD) || ebiten.IsKeyPressed(ebiten.KeyRight) {
+												g.ship.Move(shipSpeed, 0)
+												g.ship.Angle = 0
+								}
+
+								if ebiten.IsKeyPressed(ebiten.KeySpace) {
+												damage := 1
+												if g.powerUp == DoubleDamage {
+																damage = 2
+												}
+												g.bullets = append(g.bullets, Bullet{X: g.ship.X, Y: g.ship.Y, Angle: g.ship.Angle, Damage: damage})
+												if g.enableSound && g.shootSound != nil {
+																g.shootSound.Rewind()
+																g.shootSound.Play()
+												}
+								}
+
+								for i := len(g.bullets) - 1; i >= 0; i-- {
+												bullet := &g.bullets[i]
+												bullet.X += bulletSpeed * math.Cos(bullet.Angle)
+												bullet.Y += bulletSpeed * math.Sin(bullet.Angle)
+												if bullet.X < 0 || bullet.X > screenWidth || bullet.Y < 0 || bullet.Y > screenHeight {
+																g.bullets = append(g.bullets[:i], g.bullets[i+1:]...)
+												}
+								}
+
+								for i := len(g.asteroids) - 1; i >= 0; i-- {
+												asteroid := &g.asteroids[i]
+												asteroid.X += asteroid.Speed * math.Cos(asteroid.Angle)
+												asteroid.Y += asteroid.Speed * math.Sin(asteroid.Angle)
+												if asteroid.X < -50 || asteroid.X > screenWidth+50 || asteroid.Y < -50 || asteroid.Y > screenHeight+50 {
+																g.asteroids = append(g.asteroids[:i], g.asteroids[i+1:]...)
+												}
+								}
+
+								for i := len(g.asteroids) - 1; i >= 0; i-- {
+												asteroid := &g.asteroids[i]
+												for j := len(g.bullets) - 1; j >= 0; j-- {
+																bullet := &g.bullets[j]
+																if g.collides(asteroid, bullet) {
+																				g.bullets = append(g.bullets[:j], g.bullets[j+1:]...)
+																				if asteroid.Health <= 0 {
+																								if asteroid.Size > 20 {
+																												g.splitAsteroid(asteroid)
+																								}
+																								g.asteroids = append(g.asteroids[:i], g.asteroids[i+1:]...)
+																								g.score++
+																								g.asteroidsDefeated++
+																				}
+																				break
+																}
+												}
+								}
+
+								for i := len(g.asteroids) - 1; i >= 0; i-- {
+												asteroid := &g.asteroids[i]
+												if g.collidesWithShip(asteroid) {
+																g.ship.Health -= g.getDamage(asteroid)
+																g.asteroids = append(g.asteroids[:i], g.asteroids[i+1:]...)
+																if g.ship.Health <= 0 {
+																				g.ship.Health = 0
+																				g.state = GameOver
+																				if g.enableSound && g.gameOverSound != nil {
+																								g.gameOverSound.Rewind()
+																								g.gameOverSound.Play()
+																				}
+																				if g.score > g.highScore {
+																								g.highScore = g.score
+																				}
+																}
+												}
+								}
+
+								if time.Since(g.powerUpEnd) > powerUpDuration*time.Second {
+												g.powerUp = None
+								}
+
+								if len(g.asteroids) < maxAsteroids {
+												g.generateAsteroid()
+								}
+
+								if time.Since(g.lastPowerUpSpawn) >= 30*time.Second {
+												g.spawnPowerUp()
+												g.lastPowerUpSpawn = time.Now()
+								}
+
+								// Check for power-up collisions
+								for i := len(g.powerUps) - 1; i >= 0; i-- {
+												powerUp := &g.powerUps[i]
+												if g.collidesWithPowerUp(powerUp) {
+																g.activatePowerUp(powerUp.Type)
+																g.powerUps = append(g.powerUps[:i], g.powerUps[i+1:]...)
+												}
+								}
+
+								// Increase asteroid generation speed
+								g.asteroidSpawnRate = time.Duration(float64(g.asteroidSpawnRate) * 0.999)
+
+								// Increase difficulty over time
+								g.asteroidSpeed = asteroidSpeed * (1 + float64(g.gameTime.Minutes()) * 0.1)
+								if g.enemyShip != nil {
+												g.enemyShipSpeed = shipSpeed * (1.5 + float64(g.gameTime.Minutes()) * 0.1)
+								}
+
+								// Check for victory condition
+								if g.gameTime >= 5*time.Minute {
+												g.state = Victory
+								}
+
+				case GameOver, Victory:
+								if ebiten.IsKeyPressed(ebiten.KeySpace) {
+												g.reset()
+								}
+				}
+
+				return nil
+}
+
+
+
+func (g *Game) collidesWithEnemyShip(bullet *Bullet) bool {
+				if g.enemyShip == nil {
+								return false
+				}
+				dx := bullet.X - g.enemyShip.X
+				dy := bullet.Y - g.enemyShip.Y
+				distance := math.Sqrt(dx*dx + dy*dy)
+				return distance <= g.enemyShip.Size
+}
+
+
 func (g *Game) Draw(screen *ebiten.Image) {
-	switch g.state {
-	case Playing:
-		// Draw enemy ships
-		for _, enemy := range g.enemyShips {
-			enemy.Draw(screen)
-		}
+				switch g.state {
+				case Playing:
+								if g.enemyShip != nil {
+												g.enemyShip.Draw(screen)
+								}
 
-		// Draw boss
-		if g.boss != nil {
-			g.boss.Draw(screen)
-		}
+								g.ship.Draw(screen)
 
-		g.ship.Draw(screen)
+								for _, bullet := range g.bullets {
+												ebitenutil.DrawRect(screen, bullet.X, bullet.Y, 2, 2, colornames.Yellow)
+								}
 
-		for _, bullet := range g.bullets {
-			ebitenutil.DrawRect(screen, bullet.X, bullet.Y, 2, 2, colornames.Yellow)
-		}
+								for _, asteroid := range g.asteroids {
+												asteroid.Draw(screen)
+								}
 
-		// Draw enemy bullets
-		for _, bullet := range g.enemyBullets {
-			ebitenutil.DrawRect(screen, bullet.X, bullet.Y, 2, 2, colornames.Red)
-		}
+								for _, powerUp := range g.powerUps {
+												color := colornames.Red
+												if powerUp.Type == DoubleDamage {
+																color = colornames.Blue
+												} else if powerUp.Type == InfiniteAmmo {
+																color = colornames.Green
+												}
+												ebitenutil.DrawRect(screen, powerUp.X, powerUp.Y, 20, 20, color)
+								}
 
-		for _, asteroid := range g.asteroids {
-			asteroid.Draw(screen)
-		}
+								// Draw health bar
+								ebitenutil.DrawRect(screen, 10, screenHeight-20, float64(g.ship.Health)*2, 10, colornames.White)
+								ebitenutil.DebugPrint(screen, fmt.Sprintf("Score: %d\nHigh Score: %d", g.score, g.highScore))
 
-		for _, powerUp := range g.powerUps {
-			g.drawPowerUp(screen, powerUp)
-		}
+								// Draw power-up message
+								if time.Since(g.powerUpMessageTime) < powerUpMessageDuration {
+												ebitenutil.DebugPrintAt(screen, g.powerUpMessage, screenWidth-200, screenHeight-20)
+								}
 
-		// Draw HUD
-		g.drawHUD(screen)
+								if time.Since(g.powerUpMessageTime) < 3*time.Second {
+												ebitenutil.DebugPrintAt(screen, g.powerUpMessage, screenWidth-200, screenHeight-20)
+								}
+								// Draw active power-up indicator
+								if g.powerUp != None {
+												ebitenutil.DrawRect(screen, screenWidth-110, screenHeight-30, 100, 20, colornames.Yellow)
+												ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Power-up: %v", g.powerUp), screenWidth-105, screenHeight-25)
+								}
 
-	case GameOver:
-		g.drawEndScreen(screen, "Game Over")
+				case GameOver:
+								g.drawEndScreen(screen, "Game Over")
 
-	case Victory:
-		g.drawEndScreen(screen, "Victory!")
-	}
+				case Victory:
+								g.drawEndScreen(screen, "Victory!")
+				}
 }
 
 func (g *Game) drawEndScreen(screen *ebiten.Image, message string) {
-	ebitenutil.DrawRect(screen, 0, 0, screenWidth, screenHeight, colornames.Black)
-	text.Draw(screen, message, g.gameFont, screenWidth/2-50, screenHeight/2-50, colornames.White)
-	text.Draw(screen, fmt.Sprintf("Score: %d", g.score), g.gameFont, screenWidth/2-50, screenHeight/2, colornames.White)
-	text.Draw(screen, fmt.Sprintf("Asteroids Defeated: %d", g.asteroidsDefeated), g.gameFont, screenWidth/2-50, screenHeight/2+50, colornames.White)
-	text.Draw(screen, fmt.Sprintf("Enemy Ships Destroyed: %d", g.enemyShipsDestroyed), g.gameFont, screenWidth/2-50, screenHeight/2+100, colornames.White)
-	text.Draw(screen, "Press SPACE to play again", g.gameFont, screenWidth/2-100, screenHeight-50, colornames.White)
+				ebitenutil.DrawRect(screen, 0, 0, screenWidth, screenHeight, colornames.Black)
+				text.Draw(screen, message, g.gameFont, screenWidth/2-50, screenHeight/2-50, colornames.White)
+				text.Draw(screen, fmt.Sprintf("Score: %d", g.score), g.gameFont, screenWidth/2-50, screenHeight/2, colornames.White)
+				text.Draw(screen, fmt.Sprintf("Asteroids Defeated: %d", g.asteroidsDefeated), g.gameFont, screenWidth/2-50, screenHeight/2+50, colornames.White)
+				text.Draw(screen, fmt.Sprintf("Enemy Ships Destroyed: %d", g.enemyShipsDestroyed), g.gameFont, screenWidth/2-50, screenHeight/2+100, colornames.White)
+				text.Draw(screen, "Press SPACE to play again", g.gameFont, screenWidth/2-100, screenHeight-50, colornames.White)
 }
 
 func (g *Game) reset() {
 	g.ship = Ship{X: screenWidth / 2, Y: screenHeight - 50, Size: 20, Health: shipHealth}
 	g.bullets = nil
-	g.enemyBullets = nil
 	g.asteroids = nil
 	g.powerUps = nil
-	g.enemyShips = nil
-	g.boss = nil
 	g.score = 0
 	g.powerUp = None
 	g.lastPowerUpSpawn = time.Now()
 	g.asteroidSpawnRate = 2 * time.Second
-	g.state = Playing
-	g.gameStartTime = time.Now()
-	g.asteroidsDefeated = 0
-	g.enemyShipsDestroyed = 0
-	g.level = 1
-	g.specialWeapon = nil
-	// Reset achievements if needed
+				g.state = Playing
+				g.gameStartTime = time.Now()
+				g.asteroidsDefeated = 0
+				g.enemyShipsDestroyed = 0
 }
 
 func (g *Game) collides(asteroid *Asteroid, bullet *Bullet) bool {
-	dx := bullet.X - asteroid.X
-	dy := bullet.Y - asteroid.Y
-	distance := math.Sqrt(dx*dx + dy*dy)
-	if distance <= asteroid.Size {
-		asteroid.Size -= 5 // Reduce size when hit
-		asteroid.Health -= bullet.Damage
-		if asteroid.Size < 10 {
-			asteroid.Health = 0 // Destroy if too small
-		}
-		return true
-	}
-	return false
+				dx := bullet.X - asteroid.X
+				dy := bullet.Y - asteroid.Y
+				distance := math.Sqrt(dx*dx + dy*dy)
+				if distance <= asteroid.Size {
+								asteroid.Size -= 5 // Reduce size when hit
+								asteroid.Health -= bullet.Damage
+								if asteroid.Size < 10 {
+												asteroid.Health = 0 // Destroy if too small
+								}
+								return true
+				}
+				return false
 }
 
 func (g *Game) collidesWithShip(asteroid *Asteroid) bool {
@@ -411,30 +499,31 @@ func (g *Game) generateAsteroid() {
 	g.asteroids = append(g.asteroids, asteroid)
 }
 
-func (g *Game) splitAsteroid(asteroid *Asteroid) {
-	newSize := asteroid.Size / 2
-	for i := 0; i < 2; i++ {
-		newAsteroid := Asteroid{
-			X:           asteroid.X,
-			Y:           asteroid.Y,
-			NumVertices: asteroid.NumVertices,
-			Size:        newSize,
-			Angle:       rand.Float64() * math.Pi * 2,
-			Speed:       asteroid.Speed * 1.5,
-			Health:      int(newSize),
-		}
-		newAsteroid.Vertices = make([][2]float64, newAsteroid.NumVertices)
-		for j := 0; j < newAsteroid.NumVertices; j++ {
-			angle := float64(j) * (2 * math.Pi / float64(newAsteroid.NumVertices))
-			newAsteroid.Vertices[j][0] = newSize * math.Cos(angle)
-			newAsteroid.Vertices[j][1] = newSize * math.Sin(angle)
-		}
-		g.asteroids = append(g.asteroids, newAsteroid)
-	}
-}
 
+
+func (g *Game) splitAsteroid(asteroid *Asteroid) {
+				newSize := asteroid.Size / 2
+				for i := 0; i < 2; i++ {
+								newAsteroid := Asteroid{
+												X:           asteroid.X,
+												Y:           asteroid.Y,
+												NumVertices: asteroid.NumVertices,
+												Size:        newSize,
+												Angle:       rand.Float64() * math.Pi * 2,
+												Speed:       asteroid.Speed * 1.5,
+												Health:      int(newSize),
+								}
+								newAsteroid.Vertices = make([][2]float64, newAsteroid.NumVertices)
+								for j := 0; j < newAsteroid.NumVertices; j++ {
+												angle := float64(j) * (2 * math.Pi / float64(newAsteroid.NumVertices))
+												newAsteroid.Vertices[j][0] = newSize * math.Cos(angle)
+												newAsteroid.Vertices[j][1] = newSize * math.Sin(angle)
+								}
+								g.asteroids = append(g.asteroids, newAsteroid)
+				}
+}
 func (g *Game) spawnPowerUp() {
-	powerUpType := PowerUpType(rand.Intn(5) + 1) // Random power-up type (1-5)
+	powerUpType := PowerUpType(rand.Intn(3) + 1) // Random power-up type (1-3)
 	powerUp := PowerUp{
 		X:    float64(rand.Intn(screenWidth)),
 		Y:    float64(rand.Intn(screenHeight)),
@@ -444,14 +533,14 @@ func (g *Game) spawnPowerUp() {
 }
 
 func (g *Game) activatePowerUp(powerUpType PowerUpType) {
-	if g.powerUp != None {
-		// Remove previous power-up
-		g.powerUp = None
-	}
-	g.powerUp = powerUpType
-	g.powerUpEnd = time.Now().Add(powerUpDuration * time.Second)
-	g.powerUpMessage = fmt.Sprintf("Picked up %v", powerUpType)
-	g.powerUpMessageTime = time.Now()
+				if g.powerUp != None {
+								// Remove previous power-up
+								g.powerUp = None
+				}
+				g.powerUp = powerUpType
+				g.powerUpEnd = time.Now().Add(powerUpDuration * time.Second)
+				g.powerUpMessage = fmt.Sprintf("Picked up %v", powerUpType)
+				g.powerUpMessageTime = time.Now()
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -470,19 +559,8 @@ func NewGame() *Game {
 		enableSound: true,
 		lastPowerUpSpawn: time.Now(),
 		asteroidSpawnRate: 2 * time.Second,
-		state: Playing,
-		gameStartTime: time.Now(),
-		level: 1,
-		upgrades: []Upgrade{
-			{Name: "Health", Level: 0, Cost: 100},
-			{Name: "Speed", Level: 0, Cost: 100},
-			{Name: "Damage", Level: 0, Cost: 100},
-		},
-		achievements: []Achievement{
-			{Name: "Asteroid Hunter", Description: "Destroy 100 asteroids", Unlocked: false},
-			{Name: "Enemy Slayer", Description: "Destroy 50 enemy ships", Unlocked: false},
-			{Name: "Boss Killer", Description: "Defeat a boss", Unlocked: false},
-		},
+								state: Playing,
+								gameStartTime: time.Now(),
 	}
 	game.generateAsteroid()
 
@@ -508,18 +586,18 @@ func NewGame() *Game {
 		log.Printf("Error loading game over sound file: %v", err)
 	}
 
-	tt, err := opentype.Parse(fonts.MPlus1pRegular_ttf)
-	if err != nil {
-		log.Fatal(err)
-	}
-	game.gameFont, err = opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    24,
-		DPI:     72,
-		Hinting: font.HintingFull,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+				tt, err := opentype.Parse(fonts.MPlus1pRegular_ttf)
+				if err != nil {
+								log.Fatal(err)
+				}
+				game.gameFont, err = opentype.NewFace(tt, &opentype.FaceOptions{
+								Size:    24,
+								DPI:     72,
+								Hinting: font.HintingFull,
+				})
+				if err != nil {
+								log.Fatal(err)
+				}
 
 	return game
 }
